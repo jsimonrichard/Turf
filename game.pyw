@@ -181,10 +181,10 @@ class Bullet(pg.sprite.Sprite):
                       self.speed_magnitude*math.sin(self.angle))
         self.done = False
         self.deadly = False
-        self.count = 4
+        self.count = 0
 
         #Frame Min
-        self.frame_min = 1
+        self.frame_min = 4
 
     def update(self, screen_rect, viewport, level_mask):
         """
