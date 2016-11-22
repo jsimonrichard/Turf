@@ -8,7 +8,7 @@ caption = ''
 screen_size = (700, 650)
 level_size = (700, 1200)
 
-
+name = 'Player'
 
 direct_dict = {pg.K_UP : (0, -1),
                pg.K_DOWN : (0, 1),
@@ -29,16 +29,19 @@ global_objects = []
 # PLAYER CLASS
 #
 
-class Player(object):
-    def __init__(self, image, punch_image, location, speed):
+class Player(pg.sprite.Sprite):
+    def __init__(self, image, punch_image, location, speed, name, font):
         self.image = pg.image.load(image).convert_alpha()
         self.image_copy = self.image
         self.punch_image = pg.image.load(punch_image)
         self.mask = pg.mask.from_surface(self.image)
         self.rect = self.image.get_rect(center=location)
+        self.name = name
+        self.font = font
 
         self.speed = speed
-        self.lives = 10
+        self.lives = 20
+        self.dead = False
         self.punching = False
         self.rifle = rifle(self.rect.center)
 
@@ -46,22 +49,15 @@ class Player(object):
         #moving
         move = self.check_keys(keys)
         self.check_collisions(move, level_mask)
+
+        if self.lives <= 0:
+            self.dead = True
     def check_keys(self, keys):
         move = [0, 0]
         for key in direct_dict:
             if keys[key]:
                 for i in (0, 1):
                     move[i] += direct_dict[key][i]*self.speed
-        #Other Actions
-        if keys[pg.K_SPACE]:
-            self.punching = True
-        else:
-            self.punching = False
-
-        if self.punching:
-            self.punch()
-        else:
-            self.punch_revert()
         
         return move
 
@@ -98,7 +94,7 @@ class Player(object):
         if 135 < self.rifle.angle < 360 - 135:
             self.image_copy = pg.transform.rotate(self.image, 180)
             
-        if 45 < self.rifle.angle < 0 or 360 < self.rifle.angle < 360 - 45:
+        if 45 > self.rifle.angle > 0 or 360 > self.rifle.angle > 360 - 45:
             self.image_copy = pg.transform.rotate(self.image, 0)
 
     def collision_detail(self, move, level_mask, index):
@@ -110,25 +106,21 @@ class Player(object):
             test_offset[index] += move[index]
         return move[index]
 
-    def punch(self):
-        #Grafics
-        self.image_copy = pg.transform.rotate(self.punch_image, 15)
-
-    def punch_revert(self):
-        #Grafics
-        self.image_copy = self.image
-
     def draw(self, surface, viewport):
         self.rifle.update(self.rifle, self.rect, viewport)
         self.rifle.draw(self.rifle, surface, viewport)
         surface.blit(self.image_copy, self.rect)
+
+        text_pos = [self.rect.x, self.rect.y - 25]
         
+        label = self.font.render(self.name, 1, (0, 0, 0))
+        surface.blit(label, text_pos)        
 
 #
 # Weapons Classes
 #
 
-class rifle(object):
+class rifle(pg.sprite.Sprite):
     def __init__(self, location):
         self.location = location
         self.image = pg.image.load(weapons_dict['rifle'])
@@ -162,7 +154,7 @@ class rifle(object):
     def get_event(self, event, objects):
         if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
             objects.add(Bullet(self.rect.center, self.angle))
-
+            
     def draw(self, null, surface, viewport):
         surface.blit(self.image_copy, self.rect)
         surface.blit(self.cross, self.cross_loc)
@@ -188,6 +180,11 @@ class Bullet(pg.sprite.Sprite):
         self.speed = (self.speed_magnitude*math.cos(self.angle),
                       self.speed_magnitude*math.sin(self.angle))
         self.done = False
+        self.deadly = False
+        self.count = 4
+
+        #Frame Min
+        self.frame_min = 1
 
     def update(self, screen_rect, viewport, level_mask):
         """
@@ -196,35 +193,38 @@ class Bullet(pg.sprite.Sprite):
         """
         self.move[0] += self.speed[0]
         self.move[1] += self.speed[1]
-        self.rect.topleft = (self.move[0] - viewport.x, self.move[1] - viewport.y)
-        self.remove(screen_rect, level_mask)
+        self.rect.center = (self.move[0] - viewport.x, self.move[1] - viewport.y)
+        self.remove(screen_rect, level_mask, [viewport.x, viewport.y])
+        self.count += 1
 
-    def collision(self, move, level_mask, index):
-        test_offset = list(self.rect.topleft)
+        if self.count >= self.frame_min:
+            self.deadly = True
+
+    def collision(self, move, level_mask, index, viewport):
+        viewport_x, viewport_y = viewport
+        test_offset = [list(self.rect.center)[0] + viewport_x, list(self.rect.center)[1] + viewport_y]
         test_offset[index] += move[index]
         if level_mask.overlap_area(self.mask, test_offset):
             return 0
         else:
             return move[index]
 
-    def remove(self, screen_rect, level_mask):
+    def remove(self, screen_rect, level_mask, viewport):
         if not self.rect.colliderect(screen_rect):
             self.kill()
 
-        x_change = self.collision( [int( math.ceil( self.speed[0] ) ), int( math.ceil( self.speed[1] ) )], level_mask, 0)
-        y_change = self.collision( [int( math.ceil( self.speed[0] ) ), int( math.ceil( self.speed[1] ) )], level_mask, 1)
+        x_change = self.collision( [int( math.ceil( self.speed[0] ) ), int( math.ceil( self.speed[1] ) )], level_mask, 0, viewport)
+        y_change = self.collision( [int( math.ceil( self.speed[0] ) ), int( math.ceil( self.speed[1] ) )], level_mask, 1, viewport)
 
         if x_change == 0 and y_change == 0:
             self.kill()
-            
-       
 
 #
 # LEVEL CLASS
 #
 
 class Level(object):    
-    def __init__(self, background, map_image, viewport, player):
+    def __init__(self, background, map_image, viewport, player, font):
         self.image = pg.image.load(map_image).convert_alpha()
         self.background = pg.image.load(background).convert_alpha()
         self.mask = pg.mask.from_surface(self.image)
@@ -232,6 +232,7 @@ class Level(object):
         self.player = player
         self.player.rect.center = self.rect.center
         self.viewport = viewport
+        self.interface = Interface(self.player)
 
     def update(self, keys):
         self.player.update(self.mask, keys)
@@ -247,6 +248,28 @@ class Level(object):
         self.player.draw(new_image, self.viewport)
         surface.blit(new_background, (0, 0), self.viewport)
         surface.blit(new_image, (0,0), self.viewport)
+        self.interface.draw(surface)
+
+class Interface(object):
+    def __init__(self, player):
+        self.player = player
+        
+        self.start_width = 200
+        self.x, self.y = (250, 30)
+        self.width, self.height = (self.start_width, 20)
+        self.padding = 2
+        
+        self.lives_rect = pg.Rect(self.x, self.y, self.width, self.height)
+        self.lives_rect_back = pg.Rect(self.x - self.padding, self.y - self.padding, self.width + (self.padding * 2), self.height + (self.padding * 2))
+        
+
+    def draw(self, surface):
+        self.width = self.player.lives * 10
+
+        self.lives_rect = pg.Rect(self.x, self.y, self.width, self.height)
+        
+        pg.draw.rect(surface, (150, 150, 150), self.lives_rect_back)
+        pg.draw.rect(surface, (255, 0, 0), self.lives_rect)
         
 
 class Control(object):
@@ -259,12 +282,14 @@ class Control(object):
         self.done = False
         self.objects = pg.sprite.Group()
 
-        self.player = Player('player/blue.png', 'player/blue.punching.png', (0, 0), 6)
+        self.font = pg.font.SysFont('monospace', 18)
+        
+        self.player = Player('player/blue.png', 'player/blue.punching.png', (0, 0), 6, name, self.font)
 
         background = level_dict[level_num]['normal']['background']
         mask = level_dict[level_num]['normal']['mask']
         
-        self.level = Level(background, mask, self.screen_rect.copy(), self.player)
+        self.level = Level(background, mask, self.screen_rect.copy(), self.player, self.font)
 
     def event_loop(self):
         for event in pg.event.get():
@@ -280,12 +305,22 @@ class Control(object):
         self.objects.update(self.screen_rect, self.level.viewport, self.level.mask)
         self.objects.draw(self.screen)
 
+        for bullet in self.objects.sprites():
+            if bullet.rect.colliderect(self.player.rect) and bullet.deadly:
+                self.player.lives -= 1
+
+    def dead(self):
+        print('dead')
+
     def main_loop(self):
         while not self.done:
             self.event_loop()
             self.update()
             pg.display.update()
             self.clock.tick(self.fps)
+            if self.player.dead:
+                break
+        self.dead()
 
 def main():
     os.environ['SDL_VIDEO_CENTERED'] = '1'
