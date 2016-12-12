@@ -2,6 +2,8 @@ import os
 import sys
 import math
 import pygame as pg
+import client
+import threading
 
 #Game Vars
 caption = ''
@@ -13,7 +15,11 @@ name = 'Player'
 direct_dict = {pg.K_UP : (0, -1),
                pg.K_DOWN : (0, 1),
                pg.K_RIGHT : (1, 0),
-               pg.K_LEFT: (-1, 0)}
+               pg.K_LEFT : (-1, 0),
+               pg.K_w : (0, -1),
+               pg.K_s : (0, 1),
+               pg.K_d : (1, 0),
+               pg.K_a : (-1, 0)}
 
 level_dict = {1 : {'normal': {'background': 'levels/one.background.png', 'mask': 'levels/one.mask.png'},
                    'reverse': {'background': 'levels/one.reverse.background.png', 'mask': 'levels/one.revers.mask.png'}} }
@@ -154,6 +160,7 @@ class rifle(pg.sprite.Sprite):
     def get_event(self, event, objects):
         if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
             objects.add(Bullet(self.rect.center, self.angle))
+            client.add_obj(self.rect.center, round(self.angle, 5))
             
     def draw(self, null, surface, viewport):
         surface.blit(self.image_copy, self.rect)
@@ -180,11 +187,6 @@ class Bullet(pg.sprite.Sprite):
         self.speed = (self.speed_magnitude*math.cos(self.angle),
                       self.speed_magnitude*math.sin(self.angle))
         self.done = False
-        self.deadly = False
-        self.count = 0
-
-        #Frame Min
-        self.frame_min = 4
 
     def update(self, screen_rect, viewport, level_mask):
         """
@@ -195,10 +197,6 @@ class Bullet(pg.sprite.Sprite):
         self.move[1] += self.speed[1]
         self.rect.center = (self.move[0] - viewport.x, self.move[1] - viewport.y)
         self.remove(screen_rect, level_mask, [viewport.x, viewport.y])
-        self.count += 1
-
-        if self.count >= self.frame_min:
-            self.deadly = True
 
     def collision(self, move, level_mask, index, viewport):
         viewport_x, viewport_y = viewport
@@ -281,6 +279,7 @@ class Control(object):
         self.keys = pg.key.get_pressed()
         self.done = False
         self.objects = pg.sprite.Group()
+        self.objects_foreign = pg.sprite.Group()
 
         self.font = pg.font.SysFont('monospace', 18)
         
@@ -304,10 +303,20 @@ class Control(object):
         self.level.draw(self.screen)
         self.objects.update(self.screen_rect, self.level.viewport, self.level.mask)
         self.objects.draw(self.screen)
+        self.objects_foreign.update(self.screen_rect, self.level.viewport, self.level.mask)
+        self.objects_foreign.draw(self.screen)
 
-        for bullet in self.objects.sprites():
-            if bullet.rect.colliderect(self.player.rect) and bullet.deadly:
+        #Get new bullets here!!!
+        if client.bullets != []:
+            for i in client.bullets:
+                print(i)
+                self.objects_foreign.add(Bullet(i[0], i[1]))
+            client.clear_bullets()
+
+        for bullet in self.objects_foreign.sprites():
+            if bullet.rect.colliderect(self.player.rect):
                 self.player.lives -= 1
+                bullet.done = True
 
     def dead(self):
         print('dead')
@@ -319,17 +328,9 @@ class Control(object):
             pg.display.update()
             self.clock.tick(self.fps)
             if self.player.dead:
-                break
+                self.done = True
         self.dead()
 
-def main():
-    os.environ['SDL_VIDEO_CENTERED'] = '1'
-    pg.init()
-    pg.mouse.set_visible(False)
-    Control(1).main_loop()
-    pg.quit()
-    sys.exit()
-    
-#INIT
-
-main()
+def process():
+    while True:
+        client.loop()
