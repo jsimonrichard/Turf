@@ -4,7 +4,7 @@ import netparser
 import time
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-host = '192.168.1.67'
+host = 'localhost'
 port = 16180
 
 try:
