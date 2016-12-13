@@ -2,10 +2,18 @@ import socket
 import sys
 import netparser
 import time
+import broadcast
+
+broadcast_port = 16181
+
+print('Waiting for broadcast message from server...')
+server_message = broadcast.client_listen(broadcast_port)
+host = server_message[0]
+port = int(server_message[1])
+
+print('Server found at ' + host + ':' + str(port))
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-host = '192.168.1.67'
-port = 16180
 
 try:
     s.connect((host, port))

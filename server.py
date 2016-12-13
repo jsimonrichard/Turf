@@ -2,9 +2,11 @@ import socket
 import sys
 from _thread import *
 import netparser
+import broadcast
 
 host = ''
 port = 16180
+broadcast_port = 16181
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 players = 0
@@ -66,7 +68,10 @@ def clear_list():
     bullet_list = []
     clear_count = 0
 
+start_new_thread(broadcast.server_send, (port, broadcast_port))
+
 print('Waiting for a connection...')
+
 while True:
     conn, addr = s.accept()
     print('Connected to: ' + str(addr[0]) + ':'+str(addr[1]))
