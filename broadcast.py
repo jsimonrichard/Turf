@@ -10,7 +10,7 @@ def server_send(game_port, broadcast_port):
     print('Broadcast port is ' + str(broadcast_port))
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind((myip, 0))
+    sock.bind(('', 0))
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
     message = 'turf_server@' + myip + ':' + str(game_port)
